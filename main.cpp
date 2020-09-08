@@ -29,7 +29,7 @@ int write_i = 0;
 
 atomic_bool done_flag;
 
-#define SING_TEST_NUM 1000000
+#define SING_TEST_NUM 100000
 #define  THREAD_NUM 5
 #define THREAD_SEND_NUM 100000
 
@@ -43,27 +43,38 @@ long long getCurrentTime()
 void read_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 {
     while (1) {
-        BYTE data[100] = {0};
-        int len = writeQueue->GetMessage(data);
+        // BYTE data[100] = {0};
+        std::string data = "";
+        int len = writeQueue->read_shm(data);
+#if 1
         if (len > 0) {
-            int i = atoi((const char *) data);
-            if (i != read_i && i != -1) {
-                printf("------------Read sequence error,i = %d,read = %s ------------\n", read_i, data);
-                writeQueue->PrintTrunk();
-                exit(-1);
-            }
-            if (i == -1) {
-                break;
-            }
+            // std::cout << "len = " << len << ", data = " << data << std::endl;
             read_i++;
         }
-        else {
-            if (len != (int) eQueueErrorCode::QUEUE_NO_MESSAGE) {
-                printf("Read failed ret = %d\n", len);
-                writeQueue->PrintTrunk();
-                exit(-1);
-            }
+        if (read_i >= SING_TEST_NUM) {
+            break;
         }
+#else
+    if (len > 0) {
+        int i = atoi((const char *) data);
+        if (i != read_i && i != -1) {
+            printf("------------Read sequence error,i = %d,read = %s ------------\n", read_i, data);
+            writeQueue->print_head();
+            exit(-1);
+        }
+        if (i == -1) {
+            break;
+        }
+        read_i++;
+    }
+    else {
+        if (len != (int) eQueueErrorCode::QUEUE_NO_MESSAGE) {
+            printf("Read failed ret = %d\n", len);
+            writeQueue->print_head();
+            exit(-1);
+        }
+    }
+#endif
     }
     printf("Read %s ,thread %d ,read count %d\n", mes, threadId, read_i);
 
@@ -75,25 +86,30 @@ void write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
         if (write_i >= SING_TEST_NUM) {
             break;
         }
+#if 0
         const string &data = to_string(write_i);
-        int iRet = writeQueue->SendMessage((BYTE *) data.c_str(), data.length());
+#else
+        string data = "";
+        int cycle_num = rand() % 100 + 1;
+        for (int idx = 0; idx < cycle_num; ++idx) {
+            data += 'a' + rand() % 26;
+        }
+#endif
+        int iRet = writeQueue->write_shm((BYTE *) data.c_str(), data.length());
         if (iRet == 0) {
             write_i++;
+            // std::cout << "len = " << data.length() << ", data = " << data << std::endl;
+        } else if (iRet != (int) eQueueErrorCode::QUEUE_NO_SPACE) {
+            printf("Write failed data = %d,ret = %d\n", write_i, iRet);
+            writeQueue->print_head();
+            exit(-1);
         }
-        else {
-            if (iRet != (int) eQueueErrorCode::QUEUE_NO_SPACE) {
-                printf("Write failed data = %d,ret = %d\n", write_i, iRet);
-                writeQueue->PrintTrunk();
-                exit(-1);
-            }
-        }
-
     }
 
     //over
     while (true) {
         const string &data = to_string(-1);
-        int iRet = writeQueue->SendMessage((BYTE *) data.c_str(), data.length());
+        int iRet = writeQueue->write_shm((BYTE *) data.c_str(), data.length());
         if (iRet == 0) {
             break;
         }
@@ -105,8 +121,8 @@ void mul_read_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 {
     int i = 1;
     while (1) {
-        BYTE data[100] = {0};
-        int len = writeQueue->GetMessage(data);
+        std::string data = "";
+        int len = writeQueue->read_shm(data);
         if (len > 0) {
             i++;
             read_count++;
@@ -117,7 +133,7 @@ void mul_read_func(CMessageQueue *writeQueue, int threadId, const char *mes)
             }
             if (len != (int) eQueueErrorCode::QUEUE_NO_MESSAGE) {
                 printf("Read failed ret = %d\n", len);
-                writeQueue->PrintTrunk();
+                writeQueue->print_head();
                 exit(-1);
             }
         }
@@ -134,7 +150,7 @@ void mul_write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
             break;
         }
         const string &data = to_string(i);
-        int iRet = writeQueue->SendMessage((BYTE *) data.c_str(), data.length());
+        int iRet = writeQueue->write_shm((BYTE *) data.c_str(), data.length());
         if (iRet == 0) {
             i++;
             write_count++;
@@ -145,7 +161,7 @@ void mul_write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
         else {
             if (iRet != (int) eQueueErrorCode::QUEUE_NO_SPACE) {
                 printf("Write failed data = %d,ret = %d\n", write_i, iRet);
-                writeQueue->PrintTrunk();
+                writeQueue->print_head();
                 exit(-1);
             }
         }
@@ -153,14 +169,22 @@ void mul_write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
     printf("Write  %s thread %d ,write count %d\n", mes, threadId, i);
 }
 
-void SingleRWTest()
+void SingleRWTest(int type)
 {
-    CMessageQueue *messQueue = CMessageQueue::CreateInstance(SHAR_KEY_2, 10240, eQueueModel::ONE_READ_ONE_WRITE);
+    CMessageQueue *messQueue = CMessageQueue::create_instance(SHAR_KEY_2, 1024, eQueueModel::ONE_READ_ONE_WRITE);
     long begin = getCurrentTime();
-    thread read_thread(read_func, messQueue, 1, "SingleRWTest");
-    thread write_thread(write_func, messQueue, 1, "SingleRWTest");
-    read_thread.join();
-    write_thread.join();
+    if (2 == type) {
+        thread read_thread(read_func, messQueue, 1, "SingleRWTest");
+        read_thread.join();
+    } else if (3 == type) {
+        thread write_thread(write_func, messQueue, 1, "SingleRWTest");
+        write_thread.join();
+    } else {
+        thread read_thread(read_func, messQueue, 1, "SingleRWTest");
+        thread write_thread(write_func, messQueue, 1, "SingleRWTest");
+        write_thread.join();
+        read_thread.join();
+    }
     long end = getCurrentTime();
     printf("=======================SingleRWTest=============================\n");
     printf("SingleRWTest cost time %d ms\n", (int) (end - begin));
@@ -172,13 +196,13 @@ void SingleRWTest()
     else {
         printf("SingleRWTest failed %d \n");
     }
-    delete  messQueue;
+    delete messQueue;
     messQueue = nullptr;
 }
 
 void MulRWTest()
 {
-    CMessageQueue *messQueue = CMessageQueue::CreateInstance(SHAR_KEY_1, 10240, eQueueModel::MUL_READ_MUL_WRITE);
+    CMessageQueue *messQueue = CMessageQueue::create_instance(SHAR_KEY_1, 10240, eQueueModel::MUL_READ_MUL_WRITE);
     read_count.store(0);
     write_count.store(0);
     done_flag.store(false);
@@ -218,7 +242,7 @@ void MulRWTest()
 int main(int argc, const char *argv[])
 {
     printf("===============================================================\n");
-    SingleRWTest();
+    SingleRWTest(argc);
     printf("===============================================================\n");
     MulRWTest();
 }

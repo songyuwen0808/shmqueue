@@ -1,7 +1,3 @@
-//
-// Created by dguco on 19-1-22.
-//
-
 #include <cstddef>
 #include <cerrno>
 #include <cstring>
@@ -28,8 +24,7 @@ struct sembuf {
 using namespace std;
 namespace shmmqueue
 {
-CShmRWlock::CShmRWlock()
-    : m_iSemID(-1), m_iSemKey(-1)
+CShmRWlock::CShmRWlock() : _sem_id(-1), _sem_key(-1)
 {
 
 }
@@ -79,11 +74,11 @@ void CShmRWlock::init(key_t iKey)
         }
     }
 
-    m_iSemKey = iKey;
-    m_iSemID = iSemID;
+    _sem_key = iKey;
+    _sem_id = iSemID;
 }
 
-int CShmRWlock::Rlock() const
+int CShmRWlock::r_lock() const
 {
     /*包含两个信号量,第一个为写信号量，第二个为读信号量
      *获取读锁
@@ -94,14 +89,14 @@ int CShmRWlock::Rlock() const
     int ret = -1;
 
     do {
-        ret = semop(m_iSemID, &sops[0], nsops);
+        ret = semop(_sem_id, &sops[0], nsops);
     }
     while ((ret == -1) && (errno == EINTR));
 
     return ret;
 }
 
-int CShmRWlock::UnRlock() const
+int CShmRWlock::r_unlock() const
 {
 
     /*包含两个信号量,第一个为写信号量，第二个为读信号量
@@ -114,7 +109,7 @@ int CShmRWlock::UnRlock() const
     int ret = -1;
 
     do {
-        ret = semop(m_iSemID, &sops[0], nsops);
+        ret = semop(_sem_id, &sops[0], nsops);
 
     }
     while ((ret == -1) && (errno == EINTR));
@@ -122,7 +117,7 @@ int CShmRWlock::UnRlock() const
     return ret;
 }
 
-bool CShmRWlock::TryRlock() const
+bool CShmRWlock::try_r_lock() const
 {
     /*包含两个信号量,第一个为写信号量，第二个为读信号量
      *获取读锁
@@ -132,7 +127,7 @@ bool CShmRWlock::TryRlock() const
     struct sembuf sops[2] = {{0, 0, SEM_UNDO | IPC_NOWAIT}, {1, 1, SEM_UNDO | IPC_NOWAIT}};
     size_t nsops = 2;
 
-    int iRet = semop(m_iSemID, &sops[0], nsops);
+    int iRet = semop(_sem_id, &sops[0], nsops);
     if (iRet == -1) {
         if (errno == EAGAIN) {
             //无法获得锁
@@ -145,7 +140,7 @@ bool CShmRWlock::TryRlock() const
     return true;
 }
 
-int CShmRWlock::Wlock() const
+int CShmRWlock::w_lock() const
 {
     /*包含两个信号量,第一个为写信号量，第二个为读信号量
      *获取写锁
@@ -158,7 +153,7 @@ int CShmRWlock::Wlock() const
     int ret = -1;
 
     do {
-        ret = semop(m_iSemID, &sops[0], nsops);
+        ret = semop(_sem_id, &sops[0], nsops);
 
     }
     while ((ret == -1) && (errno == EINTR));
@@ -166,7 +161,7 @@ int CShmRWlock::Wlock() const
     return ret;
 }
 
-int CShmRWlock::UnWlock() const
+int CShmRWlock::w_unlock() const
 {
     /*包含两个信号量,第一个为写信号量，第二个为读信号量
      *解除写锁
@@ -178,7 +173,7 @@ int CShmRWlock::UnWlock() const
     int ret = -1;
 
     do {
-        ret = semop(m_iSemID, &sops[0], nsops);
+        ret = semop(_sem_id, &sops[0], nsops);
 
     }
     while ((ret == -1) && (errno == EINTR));
@@ -189,7 +184,7 @@ int CShmRWlock::UnWlock() const
 
 }
 
-bool CShmRWlock::TryWlock() const
+bool CShmRWlock::try_w_lock() const
 {
     /*包含两个信号量,第一个为写信号量，第二个为读信号量
      *尝试获取写锁
@@ -201,7 +196,7 @@ bool CShmRWlock::TryWlock() const
                              {0, 1, SEM_UNDO | IPC_NOWAIT}};
     size_t nsops = 3;
 
-    int iRet = semop(m_iSemID, &sops[0], nsops);
+    int iRet = semop(_sem_id, &sops[0], nsops);
     if (iRet == -1) {
         if (errno == EAGAIN) {
             //无法获得锁
@@ -215,31 +210,31 @@ bool CShmRWlock::TryWlock() const
     return true;
 }
 
-int CShmRWlock::Lock() const
+int CShmRWlock::lock() const
 {
-    return Wlock();
+    return w_lock();
 }
 
 //Unlock 释放锁
-int CShmRWlock::Unlock() const
+int CShmRWlock::unlock() const
 {
-    return UnWlock();
+    return w_unlock();
 }
 
-bool CShmRWlock::trylock() const
+bool CShmRWlock::try_lock() const
 {
-    return TryWlock();
+    return try_w_lock();
 }
 
 //获取sem key
-key_t CShmRWlock::Getkey() const
+key_t CShmRWlock::get_key() const
 {
-    return m_iSemKey;
+    return _sem_key;
 }
 
-int CShmRWlock::getid() const
+int CShmRWlock::get_id() const
 //获取sem id
 {
-    return m_iSemID;
+    return _sem_id;
 }
 }

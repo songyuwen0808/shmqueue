@@ -1,9 +1,3 @@
-//
-//  Created by 杜国超 on 19-1-22.
-//  Copyright © 2019年 杜国超. All rights reserved.
-//  共享内存数据读写锁
-//
-
 #ifndef SHMQUEUE_SHM_RWLOCK_H
 #define SHMQUEUE_SHM_RWLOCK_H
 
@@ -20,104 +14,98 @@ public:
     //构造函数.
     CShmRWlock(key_t iKey);
     //读锁
-    int Rlock() const;
+    int r_lock() const;
     //释放读锁
-    int UnRlock() const;
+    int r_unlock() const;
     /**
      * TryRlock
      * @return  true lock ok,false lock failed
      */
-    bool TryRlock() const;
+    bool try_r_lock() const;
     //写锁
-    int Wlock() const;
+    int w_lock() const;
     //释放写锁
-    int UnWlock() const;
+    int w_unlock() const;
     /**
     * TryRlock
     * @return  true lock ok,false lock failed
     */
-    bool TryWlock() const;
+    bool try_w_lock() const;
     //lock block until lock sucess
-    int Lock() const;
+    int lock() const;
     //Unlock
-    int Unlock() const;
+    int unlock() const;
     /**
      * trylock
      * @return true lock ok,false lock failed
      */
-    bool trylock() const;
+    bool try_lock() const;
     //get sem key
-    key_t Getkey() const;
+    key_t get_key() const;
     //get sem id
-    int getid() const;
+    int get_id() const;
 
 private:
     //初始化
     void init(key_t iKey);
 protected:
-    int m_iSemID;
-    key_t m_iSemKey;
+    int _sem_id;
+    key_t _sem_key;
 };
 
 class CSafeShmRlock
 {
 public:
-    CSafeShmRlock() : m_pLock(NULL)
+    CSafeShmRlock() : _p_lock(NULL) {}
+    CSafeShmRlock(CShmRWlock *pLock) : _p_lock(pLock)
     {
-    }
-    CSafeShmRlock(CShmRWlock *pLock)
-        : m_pLock(pLock)
-    {
-        if (m_pLock != NULL)
-        {
-            m_pLock->Rlock();
+        if (_p_lock != NULL) {
+            _p_lock->r_lock();
         }
     }
 
-    void InitLock(CShmRWlock *pLock)
+    void init_lock(CShmRWlock *pLock)
     {
-        m_pLock = pLock;
-        m_pLock->Rlock();
+        _p_lock = pLock;
+        _p_lock->r_lock();
     }
 
     ~CSafeShmRlock()
     {
-        m_pLock->UnRlock();
+        _p_lock->r_unlock();
     }
 private:
-    CShmRWlock *m_pLock;
+    CShmRWlock *_p_lock;
 };
 
 class CSafeShmWlock
 {
 public:
-    CSafeShmWlock()
-            : m_pLock(NULL)
+    CSafeShmWlock() : _p_lock(NULL)
     {
 
     }
-    CSafeShmWlock(CShmRWlock *pLock)
-        : m_pLock(pLock)
+    CSafeShmWlock(CShmRWlock *pLock) : _p_lock(pLock)
     {
-        m_pLock->Wlock();
+        _p_lock->w_lock();
     }
 
-    void InitLock(CShmRWlock *pLock)
+    void init_lock(CShmRWlock *pLock)
     {
-        m_pLock = pLock;
-        m_pLock->Wlock();
+        _p_lock = pLock;
+        _p_lock->w_lock();
     }
 
 
     ~CSafeShmWlock()
     {
-        if (m_pLock != NULL)
+        if (_p_lock != NULL)
         {
-            m_pLock->UnWlock();
+            _p_lock->w_unlock();
         }
     }
 private:
-    CShmRWlock *m_pLock;
+    CShmRWlock *_p_lock;
 };
 }
 #endif //SHMQUEUE_SHM_RWLOCK_H
