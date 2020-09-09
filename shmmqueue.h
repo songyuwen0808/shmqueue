@@ -149,14 +149,12 @@ public:
     void print_head()
     {
         std::cout << "shm head ptr = " << (void*)_mem_trunk
-/*
             << ", shmkey = " << _mem_trunk->_shm_key
             << ", shmid = " << _mem_trunk->_shm_id
             << ", total size = " << _mem_trunk->_size
             << ", begin pos = " << _mem_trunk->_begin_pos
             << ", end pos = " << _mem_trunk->_end_pos
-            << ", queue module = " << _mem_trunk->_queue_model
-*/
+            << ", queue module = " << static_cast<int>(_mem_trunk->_queue_model)
             << std::endl;
     }
 
