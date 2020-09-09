@@ -29,7 +29,7 @@ int write_i = 0;
 
 atomic_bool done_flag;
 
-#define SING_TEST_NUM 100000
+#define SING_TEST_NUM 100
 #define  THREAD_NUM 5
 #define THREAD_SEND_NUM 100000
 
@@ -48,7 +48,7 @@ void read_func(CMessageQueue *writeQueue, int threadId, const char *mes)
         int len = writeQueue->read_shm(data);
 #if 1
         if (len > 0) {
-            // std::cout << "len = " << len << ", data = " << data << std::endl;
+            std::cout << "len = " << len << ", data = " << data << std::endl;
             read_i++;
         }
         if (read_i >= SING_TEST_NUM) {
@@ -95,10 +95,10 @@ void write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
             data += 'a' + rand() % 26;
         }
 #endif
-        int iRet = writeQueue->write_shm((BYTE *) data.c_str(), data.length());
+        int iRet = writeQueue->write_shm((char *) data.c_str(), data.length());
         if (iRet == 0) {
             write_i++;
-            // std::cout << "len = " << data.length() << ", data = " << data << std::endl;
+            std::cout << "len = " << data.length() << ", data = " << data << std::endl;
         } else if (iRet != (int) eQueueErrorCode::QUEUE_NO_SPACE) {
             printf("Write failed data = %d,ret = %d\n", write_i, iRet);
             writeQueue->print_head();
@@ -109,7 +109,7 @@ void write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
     //over
     while (true) {
         const string &data = to_string(-1);
-        int iRet = writeQueue->write_shm((BYTE *) data.c_str(), data.length());
+        int iRet = writeQueue->write_shm((char *) data.c_str(), data.length());
         if (iRet == 0) {
             break;
         }
@@ -150,7 +150,7 @@ void mul_write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
             break;
         }
         const string &data = to_string(i);
-        int iRet = writeQueue->write_shm((BYTE *) data.c_str(), data.length());
+        int iRet = writeQueue->write_shm((char *) data.c_str(), data.length());
         if (iRet == 0) {
             i++;
             write_count++;

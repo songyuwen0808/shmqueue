@@ -1,165 +1,216 @@
-#ifndef messagequeue_h
-#define messagequeue_h
+#ifndef __SHM_QUEUE_H__
+#define __SHM_QUEUE_H__
 
 #include <iostream>
 #include "shm_rwlock.h"
 
 #define EXTRA_BYTE 8
 #define CACHELINE_SIZE 64
-//修改字对齐规则，避免false sharing
+//Modify the alignment rules to avoid false sharing
 #define CACHELINE_ALIGN  __attribute__((aligned(CACHELINE_SIZE)))
 
-#define SHM_MIN(a,b) a < b ? a : b
+#ifndef MIN
+#define MIN(a, b) (a) < (b) ? (a) : (b)
+#endif
 
-#define  CACHE_LINE_SIZE 64 //cache line 大小
-//内存屏障
+//cache line 大小
+#define  CACHE_LINE_SIZE 64
+// memory barrier
 #define __MEM_BARRIER  __asm__ __volatile__("mfence":::"memory")
-//内存读屏障
+// memory read barrier
 #define __READ_BARRIER__  __asm__ __volatile__("lfence":::"memory")
-//内存写屏障
+// memory write barrier
 #define __WRITE_BARRIER__  __asm__ __volatile__("sfence":::"memory")
 
 namespace shmmqueue
 {
-// typedef unsigned char BYTE;
-typedef char BYTE;
-
+// read and write type
 enum class eQueueModel: unsigned char
 {
-    ONE_READ_ONE_WRITE,   //一个进程读消息一个进程写消息
-    ONE_READ_MUL_WRITE,   //一个进程读消息多个进程写消息
-    MUL_READ_ONE_WRITE,   //多个进程读消息一个进程写消息
-    MUL_READ_MUL_WRITE,   //多个进程读消息多个进程写消息
+    // one process read, one process write
+    ONE_READ_ONE_WRITE,
+    // one process read, multi process write
+    ONE_READ_MUL_WRITE,
+    // multi process read, one process write
+    MUL_READ_ONE_WRITE,
+    // multi process read, multi process write
+    MUL_READ_MUL_WRITE,
 };
 
+// error code of create shm
 enum class eQueueErrorCode: int
 {
-    QUEUE_OK = 0,     // param error
-    QUEUE_PARAM_ERROR = -1,     // param error
-    QUEUE_NO_SPACE = -2,        // message queue has no space
-    QUEUE_NO_MESSAGE = -3,      // message queue has no message
-    QUEUE_DATA_SEQUENCE_ERROR = -4,// message queue the message sequence error
+    // everything is fine
+    QUEUE_OK = 0,
+    // param error
+    QUEUE_PARAM_ERROR = -1,
+    // message queue has no space
+    QUEUE_NO_SPACE = -2,
+    // message queue has no message    
+    QUEUE_NO_MESSAGE = -3,
+    // message queue the message sequence error
+    QUEUE_DATA_SEQUENCE_ERROR = -4,
 };
 
+// create shm type
 enum class enShmModule: unsigned char
 {
-    SHM_INIT,     //第一次申请共享内存，初始化
-    SHM_RESUME,   //共享内存已存在，恢复重新映射共享内存数据
+    // first time, shm need to be initialized
+    SHM_INIT,
+    // not first time, shm can't initialize
+    SHM_RESUME,
 };
 
+// shm controller
 class CACHELINE_ALIGN CMessageQueue
 {
 private:
     /**
-     *
-     * @param module
-     * @param shmKey
-     * @param shmId
-     * @param size 如果传入的size != 2^n,size 会初始化为>size的最小的2^n的数
-     * 例如　2^n-1 < size < 2^n,则MessageQueue被初始化为2^n
+     * @brief (only) constructor
+     * @param char* curr_addr : head ptr of shm
+     * @param const eQueueModel& module : single/multi read & write type
+     * @param key_t shm_key : a unique identifier for SHM
+     * @param int shm_id : segment identifier
+     * @param size_t siz : size of shm
+     * @param const enShmModule &shm_model: create shm type
+     * @return :
      */
-    CMessageQueue(BYTE *curr_addr, const eQueueModel& module, key_t shm_key, int shm_id, size_t size, const enShmModule &shm_model);
+    CMessageQueue(char* curr_addr, const eQueueModel& module, key_t shm_key, int shm_id, size_t size, const enShmModule &shm_model);
 public:
     ~CMessageQueue();
+    /**
+     * default (copy) construct is forbidden
+     */
     CMessageQueue(const CMessageQueue &) = delete;
     CMessageQueue(CMessageQueue &&) = delete;
     CMessageQueue& operator=(const CMessageQueue &) = delete;
+
+// interface of init & release
 public:
     /**
-     * 添加消息 对于mes queue来说是写操作，因为在队列中添加了一个消息包,仅修改m_iEnd
-     * 写取共享内存管道（改变读写索引）,，读共享内存仅改变m_iEnd，保证读单进程读和写进程不会发生竞争，写不会造成数据不一致
-     * @param message
-     * @param length
-     * @return
+     * @brief create shm
+     * @param key_t shm_key : a unique identifier for SHM
+     * @param long shm_size : size of shm
+     * @param enShmModule &shm_model : create shm type
+     * @param int& shm_id : segment identifier
+     * @return : head ptr of shm
      */
-    int write_shm(BYTE *message, size_t length);
+    static char *create_share_mem(key_t shm_key, long shm_size, enShmModule &shm_model, int& shm_id);
     /**
-     * 获取消息 对于mes queue来说是读操作，因为从队列中拿走了一个消息包 仅修改m_iBegin
-     * 读取共享内存管道（改变读写索引）,，读共享内存仅改变m_iBegin，保证读单进程读和写进程不会发生竞争，写不会造成数据不一致
-     * @param pOutCode
-     * @return message  > 0 data len ,or < 0 error code
-     * */
+     * @brief destroy shm
+     * @param key_t shm_key : a unique identifier for SHM
+     * @param long shm_size : size of shm
+     * @param enShmModule &shm_model : create shm type
+     * @param int& shm_id : segment identifier
+     * @return : head ptr of shm
+     */
+    static int destory_share_mem(const void* shm_addr,key_t shm_key);
+    /**
+     * @brief create shm manager instance
+     * @param key_t shm_key : a unique identifier for SHM
+     * @param size_t queue_size : size of shm requested, if queue_size != 2^n, will change queue_size to the nearest 2^n bigger than queue_size
+     * @param eQueueModel queue_model : single/multi read & write type
+     * @return : shm manager instance
+     */
+    static CMessageQueue* create_instance(key_t shm_key, size_t queue_size, eQueueModel queue_model = eQueueModel::ONE_READ_ONE_WRITE);
+
+// interface of read and write
+public:
+    /**
+     * @brief wirte message to shm
+     * @param char* message : head ptr of the message needs to be wirtten to shm
+     * @param size_t length : length of message
+     * @return : 0 is returned on success, negtive number on error(see details: eQueueErrorCode)
+     */
+    int write_shm(char *message, size_t length);
+    /**
+     * @brief read message from shm, and delete from shm after success
+     * @param std::string& out_res : message get from shm
+     * @return : 0 or positive number is returned on success, which means the real length of the message
+     */
     int read_shm(std::string& out_res);
     /**
-     * 从mess queue 头部读取一个消息，从队列中copy走了一个消息包没有改变mess queue
-     * @param pOutCode
-     * @param pOutLength
-     * @return message  > 0 data len ,or < 0 error code
-     * */
-    int read_msg_head(BYTE *pOutCode);
+     * @brief read first message from shm, but not delete from shm
+     * @param std::string& out_res : message get from shm
+     * @return : 0 or positive number is returned on success, which means the real length of the message
+     */
+    int read_msg_head(std::string& out_res);
     /**
-     * 从mess queue删除头部删除一个消息，仅修改m_iBegin
-     * @param iCodeOffset
-     * @param pOutCode
-     * @return
-     * */
+     * @brief delete first message from shm
+     * @param
+     * @return : 0 or positive number is returned on success, which means the real length of the message
+     */
     int del_msg_head();
     /**
-     * 打印队列信息
-     * 这里没有加锁打印仅供参考，不一定是正确的
-     **/
-    void print_head();
-private:
-    //获取空闲区大小
-    unsigned int get_free_size();
-    //获取数据长度
-    unsigned int get_data_size();
-    //获取存储数据的内存取长度（空闲的和占用的）
-    unsigned int get_queue_length();
-    //初始化lock
-    void init_lock();
-    //是否要对读端上锁
-    bool is_begin_lock();
-    //是否要对写端上锁
-    bool is_end_lock();
-public:
-    //创建共享内存
-    static BYTE *create_share_mem(key_t iKey, long vSize, enShmModule &shmModule,int& shmId);
-    //销毁共享内存
-    static int destory_share_mem(const void *shmaddr,key_t iKey);
-    //是否是2的次方
-    static bool is_power_of_2(size_t size);
-    //求最接近的最大2的指数次幂
-    static int fls(size_t size);
-    static size_t round_up_pow_of_2(size_t size);
-    //创建CMssageQueue对象
-    /**
-     *
-     * @param shmkey
-     * @param queuesize 如果传入的size != 2^n,size 会初始化为>size的最小的2^n的数,例如2^n-1 < size < 2^n,
-     *                  则MessageQueue被初始化为2^n
-     * @param queueModule
+     * @brief used for debug, print the head of shm(no lock, maybe not correct where exists multi read/write process)
+     * @param
      * @return
      */
-    static CMessageQueue *create_instance(key_t shmkey, size_t queuesize, eQueueModel queueModule = eQueueModel::MUL_READ_MUL_WRITE);
+    void print_head();
+
+// some inner interface
+private:
+    // get free size for wirte
+    unsigned int get_free_size();
+    // get data size which has already written to shm
+    unsigned int get_data_size();
+    // get total size of shm
+    unsigned int get_queue_length();
+    // init lock
+    void init_lock();
+    // whether locks are required when read data
+    bool is_read_lock();
+    // whether locks are required when write data
+    bool is_write_lock();
+    // whether shm size is 2^n
+    static bool is_power_of_2(size_t size);
+    // get the nearest 2^n number
+    static int fls(size_t size);
+    static size_t round_up_pow_of_2(size_t size);
 private:
     struct CACHELINE_ALIGN stMemTrunk
     {
         /**
-         * 1) 这里读写索引用int类型,cpu可以保证对float,double和long除外的基本类型的读写是原子的,保证一个线程不会读到另外一个线程写到一半的值
-         * 2) 在变量之间插入一个64字节(cache line的长度)的变量(没有实际的计算意义),但是可以保证两个变量不会同时在一个cache line里,防止不同的
-         *    进程或者线程同时访问在一个cache line里不同的变量产生false sharing,
+         * 1) use 'int' type to denote the begin/end pos, CPU can ensure atomic read/write operation of basic type 
+              beside float/double/long, so A process will not read incomplete value writing by B process
+           2) cache has no practical meaning, just to put value in the different CPU cache line, to prevent false sharing
          */
+
+        // begin pos to read from shm
         volatile unsigned int _begin_pos;
         char __cache_padding1__[CACHE_LINE_SIZE];
+        // end pos to read from shm
+        // if _begin_pos == _end_pos, means no data saved in shm
         volatile unsigned int _end_pos;
         char __cache_padding2__[CACHE_LINE_SIZE];
+        // unique identifier for SHM
         int _shm_key;
         char __cache_padding3__[CACHE_LINE_SIZE];
+        
+        // size of shm
         unsigned int _size;
         char __cache_padding4__[CACHE_LINE_SIZE];
+        
+        // segment identifier
         int _shm_id;
         char __cache_padding5__[CACHE_LINE_SIZE];
+        
+        // single/multi read & write type
         eQueueModel _queue_model;
     };
 private:
+    // shm header
     stMemTrunk* _mem_trunk;
-    CShmRWlock* _begin_lock;  //m_iBegin 锁
-    CShmRWlock* _end_lock; //m_iEnd
-    BYTE* _queue_addr;
-    void * _shm_addr;
+    // read lock
+    CShmRWlock* _read_lock;
+    // write lock
+    CShmRWlock* _write_lock;
+    // data head ptr
+    char* _data_ptr;
+    // shm head ptr
+    void * _shm_ptr;
 };
 }
 
 
-#endif /* messagequeue_h */
+#endif /* __SHM_QUEUE_H__ */

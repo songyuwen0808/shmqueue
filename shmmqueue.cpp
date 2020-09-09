@@ -7,10 +7,10 @@
 
 namespace shmmqueue
 {
-CMessageQueue::CMessageQueue(BYTE *curr_addr, const eQueueModel& module, key_t shm_key, int shm_id, size_t size, const enShmModule &shm_model)
+CMessageQueue::CMessageQueue(char *curr_addr, const eQueueModel& module, key_t shm_key, int shm_id, size_t size, const enShmModule &shm_model)
 {
-    _shm_addr = (void*) curr_addr;
-    _queue_addr = curr_addr;
+    _shm_ptr = (void*) curr_addr;
+    _data_ptr = curr_addr;
     _mem_trunk = (stMemTrunk*)curr_addr;
     if (shm_model == enShmModule::SHM_INIT) {
         // _mem_trunk = new (_queue_addr) stMemTrunk();
@@ -22,27 +22,27 @@ CMessageQueue::CMessageQueue(BYTE *curr_addr, const eQueueModel& module, key_t s
         _mem_trunk->_queue_model = module;
     } 
     
-    _queue_addr += sizeof(stMemTrunk);
+    _data_ptr += sizeof(stMemTrunk);
     init_lock();
 }
 
 CMessageQueue::~CMessageQueue()
 {
     if(_mem_trunk) {
-        destory_share_mem(_shm_addr,_mem_trunk->_shm_key);
+        destory_share_mem(_shm_ptr,_mem_trunk->_shm_key);
         _mem_trunk->~stMemTrunk();
     }
-    if (_begin_lock) {
-        delete _begin_lock;
-        _begin_lock = NULL;
+    if (_read_lock) {
+        delete _read_lock;
+        _read_lock = NULL;
     }
-    if (_end_lock) {
-        delete _end_lock;
-        _end_lock = NULL;
+    if (_write_lock) {
+        delete _write_lock;
+        _write_lock = NULL;
     }
 }
 
-int CMessageQueue::write_shm(BYTE* message, size_t length)
+int CMessageQueue::write_shm(char* message, size_t length)
 {
     if (!message || length <= 0) {
         return (int) eQueueErrorCode::QUEUE_PARAM_ERROR;
@@ -50,8 +50,8 @@ int CMessageQueue::write_shm(BYTE* message, size_t length)
 
     CSafeShmWlock tm_lock;
     //修改共享内存写锁
-    if (is_end_lock() && _end_lock) {
-        tm_lock.init_lock(_end_lock);
+    if (is_write_lock() && _write_lock) {
+        tm_lock.init_lock(_write_lock);
     }
 
     // 首先判断是否队列已满
@@ -67,22 +67,22 @@ int CMessageQueue::write_shm(BYTE* message, size_t length)
 
     size_t in_len = length;
     // BYTE *pTempDst = _queue_addr;
-    BYTE* tmp_addr = (BYTE *) (&in_len);
+    char* tmp_addr = (char *) (&in_len);
 
     //写入的时候我们在数据头插上数据的长度,方便准确取数据,每次写入一个字节可能会分散在队列的头和尾
     unsigned int tmp_end_pos = _mem_trunk->_end_pos;
     for (size_t i = 0; i < sizeof(in_len); i++) {
-        _queue_addr[tmp_end_pos] = tmp_addr[i];  // 拷贝 Code 的长度
+        _data_ptr[tmp_end_pos] = tmp_addr[i];  // 拷贝 Code 的长度
         tmp_end_pos = (tmp_end_pos + 1) & (_mem_trunk->_size - 1);  // % 用于防止 Code 结尾的 idx 超出 codequeue
     }
 
-    unsigned int first_part_len = SHM_MIN(in_len, _mem_trunk->_size - tmp_end_pos);
-    memcpy((void *) (&_queue_addr[tmp_end_pos]), (const void *) message, (size_t) first_part_len);
+    unsigned int first_part_len = MIN(in_len, _mem_trunk->_size - tmp_end_pos);
+    memcpy((void *) (&_data_ptr[tmp_end_pos]), (const void *) message, (size_t) first_part_len);
     size_t second_part_len = length - first_part_len;
     if(second_part_len > 0)
     {
         /* then put the rest (if any) at the beginning of the buffer */
-        memcpy(&_queue_addr[0], message + first_part_len, second_part_len);
+        memcpy(&_data_ptr[0], message + first_part_len, second_part_len);
     }
 
     /*
@@ -100,8 +100,8 @@ int CMessageQueue::read_shm(std::string& out_res)
 {
     CSafeShmWlock tm_lock;
     //修改共享内存写锁
-    if (is_begin_lock() && _begin_lock) {
-        tm_lock.init_lock(_begin_lock);
+    if (is_read_lock() && _read_lock) {
+        tm_lock.init_lock(_read_lock);
     }
 
     int data_size = get_data_size();
@@ -119,11 +119,11 @@ int CMessageQueue::read_shm(std::string& out_res)
     }
 
     size_t out_len = 0;
-    BYTE* tmp_addr = (BYTE *) &out_len;   // 数据拷贝的目的地址
+    char* tmp_addr = (char *) &out_len;   // 数据拷贝的目的地址
     unsigned int tmp_begin_pos = _mem_trunk->_begin_pos;
     //取出数据的长度
     for (size_t i = 0; i < sizeof(size_t); i++) {
-        tmp_addr[i] = _queue_addr[tmp_begin_pos];
+        tmp_addr[i] = _data_ptr[tmp_begin_pos];
         tmp_begin_pos = (tmp_begin_pos + 1) & (_mem_trunk->_size -1);
     }
 
@@ -137,11 +137,11 @@ int CMessageQueue::read_shm(std::string& out_res)
     }
 
 
-    unsigned int first_part_len = SHM_MIN(out_len, _mem_trunk->_size  - tmp_begin_pos);
-    out_res.assign(&_queue_addr[tmp_begin_pos], first_part_len);
+    unsigned int first_part_len = MIN(out_len, _mem_trunk->_size  - tmp_begin_pos);
+    out_res.assign(&_data_ptr[tmp_begin_pos], first_part_len);
     unsigned int second_part_len = out_len - first_part_len;
     if(second_part_len > 0) {
-        out_res.insert(out_res.length(), _queue_addr, second_part_len);
+        out_res.insert(out_res.length(), _data_ptr, second_part_len);
     }
 
     __WRITE_BARRIER__;
@@ -154,16 +154,12 @@ int CMessageQueue::read_shm(std::string& out_res)
   *功能描述        : 查看共享内存管道（不改变读写索引）
   * Error code: -1 invalid para; -2 not enough; -3 data crashed
 **/
-int CMessageQueue::read_msg_head(BYTE *out_code)
+int CMessageQueue::read_msg_head(std::string& out_res)
 {
-    if (!out_code) {
-        return (int) eQueueErrorCode::QUEUE_PARAM_ERROR;
-    }
-
     CSafeShmRlock tm_lock;
     //修改共享内存写锁
-    if (is_begin_lock() && _begin_lock) {
-        tm_lock.init_lock(_begin_lock);
+    if (is_read_lock() && _read_lock) {
+        tm_lock.init_lock(_read_lock);
     }
 
     int free_data_size = get_data_size();
@@ -180,11 +176,11 @@ int CMessageQueue::read_msg_head(BYTE *out_code)
     }
 
     size_t out_len = 0;
-    BYTE* tmp_addr = (BYTE *) &out_len;   // 数据拷贝的目的地址
+    char* tmp_addr = (char *) &out_len;   // 数据拷贝的目的地址
     unsigned int tmp_begin_pos = _mem_trunk->_begin_pos;
     //取出数据的长度
     for (size_t i = 0; i < sizeof(size_t); i++) {
-        tmp_addr[i] = _queue_addr[tmp_begin_pos];
+        tmp_addr[i] = _data_ptr[tmp_begin_pos];
         tmp_begin_pos = (tmp_begin_pos + 1) & (_mem_trunk->_size -1);
     }
 
@@ -197,14 +193,14 @@ int CMessageQueue::read_msg_head(BYTE *out_code)
         return (int) eQueueErrorCode::QUEUE_DATA_SEQUENCE_ERROR;
     }
 
-    tmp_addr = &out_code[0];  // 设置接收 Code 的地址
+    // tmp_addr = &out_code[0];  // 设置接收 Code 的地址
 
     unsigned int tmp_idx = tmp_begin_pos & (_mem_trunk->_size - 1);
-    unsigned int first_part_len = SHM_MIN(out_len, _mem_trunk->_size  - tmp_idx);
-    memcpy(tmp_addr, _queue_addr+ tmp_begin_pos, first_part_len);
+    unsigned int first_part_len = MIN(out_len, _mem_trunk->_size  - tmp_idx);
+    out_res.assign(&_data_ptr[tmp_begin_pos], first_part_len);
     unsigned int second_part_len = out_len - first_part_len;
     if(second_part_len > 0) {
-        memcpy(tmp_addr + first_part_len, _queue_addr, second_part_len);
+        out_res.insert(out_res.length(), _data_ptr, second_part_len);
     }
     return out_len;
 }
@@ -217,8 +213,8 @@ int CMessageQueue::del_msg_head()
 {
     CSafeShmWlock tm_lock;
     //修改共享内存写锁
-    if (is_begin_lock() && _begin_lock) {
-        tm_lock.init_lock(_begin_lock);
+    if (is_read_lock() && _read_lock) {
+        tm_lock.init_lock(_read_lock);
     }
 
     int free_data_size = get_data_size();
@@ -236,11 +232,11 @@ int CMessageQueue::del_msg_head()
     }
 
     size_t out_len = 0;
-    BYTE* tmp_addr = (BYTE *) &out_len;   // 数据拷贝的目的地址
+    char* tmp_addr = (char*) &out_len;   // 数据拷贝的目的地址
     unsigned int tmp_begin_pos = _mem_trunk->_begin_pos;
     //取出数据的长度
     for (size_t i = 0; i < sizeof(size_t); i++) {
-        tmp_addr[i] = _queue_addr[tmp_begin_pos];
+        tmp_addr[i] = _data_ptr[tmp_begin_pos];
         tmp_begin_pos = (tmp_begin_pos + 1)  & (_mem_trunk->_size -1);
     }
 
@@ -301,22 +297,22 @@ unsigned int CMessageQueue::get_queue_length()
 
 void CMessageQueue::init_lock()
 {
-    if (is_begin_lock()) {
-        _begin_lock = new CShmRWlock((key_t) (_mem_trunk->_shm_key + 1));
+    if (is_read_lock()) {
+        _read_lock = new CShmRWlock((key_t) (_mem_trunk->_shm_key + 1));
     }
 
-    if (is_end_lock()) {
-        _end_lock = new CShmRWlock((key_t) (_mem_trunk->_shm_key + 2));
+    if (is_write_lock()) {
+        _write_lock = new CShmRWlock((key_t) (_mem_trunk->_shm_key + 2));
     }
 }
 
-bool CMessageQueue::is_begin_lock()
+bool CMessageQueue::is_read_lock()
 {
     return (_mem_trunk->_queue_model == eQueueModel::MUL_READ_MUL_WRITE ||
         _mem_trunk->_queue_model == eQueueModel::MUL_READ_ONE_WRITE);
 }
 
-bool CMessageQueue::is_end_lock()
+bool CMessageQueue::is_write_lock()
 {
     return (_mem_trunk->_queue_model == eQueueModel::MUL_READ_MUL_WRITE ||
         _mem_trunk->_queue_model == eQueueModel::ONE_READ_MUL_WRITE);
@@ -328,7 +324,7 @@ bool CMessageQueue::is_end_lock()
   *参数			 :  iKey：共享内存块唯一标识key vSize：大小
   *返回值         ： 共享内存块地址
 **/
-BYTE* CMessageQueue::create_share_mem(key_t shm_key, long shm_size, enShmModule &shm_model,int& shm_id)
+char* CMessageQueue::create_share_mem(key_t shm_key, long shm_size, enShmModule &shm_model, int& shm_id)
 {
     if (shm_key < 0) {
         printf("[%s:%d] create_share_mem failed. [key %d]errno:%s \n", __FILE__, __LINE__, shm_key,strerror(errno));
@@ -377,7 +373,7 @@ BYTE* CMessageQueue::create_share_mem(key_t shm_key, long shm_size, enShmModule 
     }
 
     printf("Successfully alloced share memory block,[key= %d,shmId %d] size = %d \n", shm_key, shm_id, tmp_shm_size);
-    BYTE* shm_addr = (BYTE *) shmat(shm_id, NULL, 0);
+    char* shm_addr = (char *) shmat(shm_id, NULL, 0);
 
     if ((void *) -1 == shm_addr) {
         printf("[%s:%d] create share memory failed, shmat failed, [key= %d,shmId %d], error = %s. \n", __FILE__, __LINE__,shm_key, shm_id, strerror(errno));
@@ -461,7 +457,7 @@ CMessageQueue *CMessageQueue::create_instance(key_t shm_key, size_t queue_size, 
     }
     enShmModule shmModule;
     int shm_id = 0;
-    BYTE * shm_addr = CMessageQueue::create_share_mem(shm_key, queue_size + sizeof(stMemTrunk), shmModule, shm_id);
+    char * shm_addr = CMessageQueue::create_share_mem(shm_key, queue_size + sizeof(stMemTrunk), shmModule, shm_id);
     CMessageQueue *messageQueue = new CMessageQueue(shm_addr, queue_model, shm_key,shm_id, queue_size, shmModule);
     messageQueue->print_head();
     return messageQueue;
