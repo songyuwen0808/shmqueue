@@ -146,27 +146,104 @@ public:
      * @param
      * @return
      */
-    void print_head();
+    void print_head()
+    {
+        std::cout << "shm head ptr = " << (void*)_mem_trunk
+/*
+            << ", shmkey = " << _mem_trunk->_shm_key
+            << ", shmid = " << _mem_trunk->_shm_id
+            << ", total size = " << _mem_trunk->_size
+            << ", begin pos = " << _mem_trunk->_begin_pos
+            << ", end pos = " << _mem_trunk->_end_pos
+            << ", queue module = " << _mem_trunk->_queue_model
+*/
+            << std::endl;
+    }
 
 // some inner interface
 private:
     // get free size for wirte
-    unsigned int get_free_size();
+    inline unsigned int get_free_size()
+    {
+        return get_queue_length() - get_data_size() - EXTRA_BYTE;
+    }
+
     // get data size which has already written to shm
-    unsigned int get_data_size();
+    inline unsigned int get_data_size()
+    {
+        if (_mem_trunk->_begin_pos == _mem_trunk->_end_pos) {
+            // shm is empyt
+            return 0;
+        } else if (_mem_trunk->_begin_pos > _mem_trunk->_end_pos) {
+            // data is seperately to the tail and the head
+            return (unsigned int)(_mem_trunk->_end_pos + _mem_trunk->_size  - _mem_trunk->_begin_pos);
+        } else {
+            // data is around the center
+            return _mem_trunk->_end_pos - _mem_trunk->_begin_pos;
+        }
+    }
+
     // get total size of shm
-    unsigned int get_queue_length();
+    inline unsigned int get_queue_length()
+    {
+        return (unsigned int)_mem_trunk->_size;
+    }
+
     // init lock
-    void init_lock();
+    inline void init_lock()
+    {
+        if (is_read_lock()) {
+            _read_lock = new CShmRWlock((key_t) (_mem_trunk->_shm_key + 1));
+        }
+
+        if (is_write_lock()) {
+            _write_lock = new CShmRWlock((key_t) (_mem_trunk->_shm_key + 2));
+        }
+    }
+
     // whether locks are required when read data
-    bool is_read_lock();
+    inline bool is_read_lock()
+    {
+        return _mem_trunk->_queue_model == eQueueModel::MUL_READ_MUL_WRITE ||
+            _mem_trunk->_queue_model == eQueueModel::MUL_READ_ONE_WRITE;
+    }
+
     // whether locks are required when write data
-    bool is_write_lock();
+    inline bool is_write_lock()
+    {
+        return (_mem_trunk->_queue_model == eQueueModel::MUL_READ_MUL_WRITE ||
+            _mem_trunk->_queue_model == eQueueModel::ONE_READ_MUL_WRITE);
+    }
     // whether shm size is 2^n
-    static bool is_power_of_2(size_t size);
+    static bool is_power_of_2(size_t size)
+    {
+        if(size < 1) {
+            return false;
+        }
+        return (size & (size -1)) == 0;
+    }
+
     // get the nearest 2^n number
-    static int fls(size_t size);
-    static size_t round_up_pow_of_2(size_t size);
+    static size_t round_up_pow_of_2(size_t size)
+    {
+        return 1UL << fls(size - 1);
+    }
+
+    static int fls(size_t size)
+    {
+        int position = 0;
+        int i = 0;
+        if (0 != size) {
+            for (i = (size >> 1), position = 0; i != 0; ++position) {
+                i >>= 1;
+            }
+        } else {
+            position = -1;
+        }
+
+        return position + 1;
+    }
+
 private:
     struct CACHELINE_ALIGN stMemTrunk
     {
@@ -211,6 +288,4 @@ private:
     void * _shm_ptr;
 };
 }
-
-
 #endif /* __SHM_QUEUE_H__ */
