@@ -4,9 +4,7 @@ project(shmqueue)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Ofast -std=c++11")
 
 set(SOURCE_FILES main.cpp
-        shmmqueue.cpp
         shmmqueue.h
-        shm_rwlock.h
-        shm_rwlock.cpp)
+        shm_rwlock.h)
 add_executable(shmqueue ${SOURCE_FILES})
 target_link_libraries(shmqueue pthread)

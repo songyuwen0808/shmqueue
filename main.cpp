@@ -1,10 +1,3 @@
-//
-//  main.cpp
-//  Demo
-//
-//  Created by 杜国超 on 17/6/22.
-//  Copyright © 2017年 杜国超. All rights reserved.
-//
 #include <iostream>
 #include <unistd.h>
 #include <thread>
@@ -29,7 +22,7 @@ int write_i = 0;
 
 atomic_bool done_flag;
 
-#define SING_TEST_NUM 100
+#define SING_TEST_NUM 100000
 #define  THREAD_NUM 5
 #define THREAD_SEND_NUM 100000
 
@@ -119,7 +112,7 @@ void write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 
 void mul_read_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 {
-    int i = 1;
+    int i = 0;
     while (1) {
         std::string data = "";
         int len = writeQueue->read_shm(data);
