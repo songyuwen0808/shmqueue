@@ -97,6 +97,8 @@ private:
             _mem_trunk->_size = (unsigned int)size;
             _mem_trunk->_queue_model = module;
         } 
+
+        std::cout << "shm_model = " << (int)shm_model << std::endl;
         
         _data_ptr += sizeof(stMemTrunk);
         init_lock();
@@ -380,7 +382,7 @@ public:
     int read_shm(std::string& out_res)
     {
         // judege whether or not need lock write
-        CSafeShmWlock tm_lock(_write_lock, is_write_lock());
+        CSafeShmWlock tm_lock(_write_lock, is_read_lock());
 
         int data_size = get_data_size();
         if (data_size <= 0) {
@@ -554,7 +556,7 @@ public:
     }
 
 // some inner interface
-private:
+public:
     // get free size for wirte
     inline unsigned int get_free_size()
     {
