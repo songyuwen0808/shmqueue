@@ -23,12 +23,15 @@ int write_i = 0;
 
 atomic_bool done_flag;
 
-#define SING_CYCLE_NUM 100
+#define SING_CYCLE_NUM 1
 #define MULTI_CYCLE_NUM 1
-#define SING_TEST_NUM 22693
-#define  THREAD_NUM 1
+#define SING_TEST_NUM 100
+#define THREAD_NUM 1
 #define THREAD_SEND_NUM 22693
 #define SHM_SIZE 1024000
+const int MAX_FILE_BUFF_SIZE = 4 * 1024 * 1024;
+const string filename = "../file/part-00049";
+
 
 std::string test_str_lst[100] = {"wlrbbmqbhcdarzowkkyhiddqscdxrjmowfrxsjybldbefsarcbynecdyggxxpklorellnmpapqfwkhopkmcoqhnwnkuewhsqmgbbuqcljjivswmdkqtbxixmvtrrbljptnsnfwzqfjmafadrrwsofsbcnuvqhffbsaqxwpqcacehchzvfrkmlnozjkpqpxrjxkitzyxacbhhkicqcoendtomfgdwdwfcgpxiqvkuytdlcgdewhtaciohordtqkvwcsgspqoqmsboaguwnnyqxnzlgdgwpbtrwblnsadeuguumoqcdrubetokyxhoachwdvmxxrdryxlmndqtukwagmlejuukwcibxubumenmeyatdrmydiajxloghiqfmzhlvihjouvsuyoypayulyeimuotehzriicfskpggkbbipzzrzucxamludfykgruowzgiooobppleqlwphapjnadqhdcnvwdtxjbmyppphauxnspusgdhiixqmbfjxjcvudjsuyibyebmwsiqyoygyxymzevypzvjegebeocfuftsxdixtigsieehkchzdflilrjqfnxztqrsvbspkyhsenbppkqtpddbuotbbqcwivrfxjujjddntgeiqvdgaijvwcyaubwewpjvygehljxepbpiwuqzdzubdubzvafspqpqwuzifwovyddwyvvburczmgyjgfdxvtnunneslsplwuiupfxlzbknhkwppanltcfirjcddsozoyvegurfwcsfmoxeqmrjowrghwlkobmeahkgccnaehhsveymqpxhlrnunyfdzrhbasjeuygafoubutpnimuwfjqsjxvkqdorxxvrwctdsneogvbpkxlpgdirbfcriqifpgynkrrefxsnvucftpwctgtwmxnupycfgcuqunublmoiitncklefszbexrampetvhqnddjeqvuygpnkazqfrpjvoaxdpcwmjobmskskfojnewxgxnnofwltwjwnnvbwjckdmeouuzhyvhgvwujbqxxpitcvograiddvhrrdsycqhkleewhxtembaqwqwpqhsuebnvfgvjwdvjjafqzzxlcxdzncqgjlapopkvxfgvicetcmkbljopgtqvvhbgsdvivhesnkqxmwrqidrvmhlubbryktheyentmrobdeyqcrgluaiihveixwjjrqopubjguxhxdipfzwswybgfylqvjzharvrlyauuzdrcnjkphclffrkeecbpdipufhidjcxjhrnxcxmjcxohqanxdrmgzebhnlmwpmhwdvthsfqueeexgrujigskmvrzgfwvrftwapdtutpbztygnsrxajjngcomikjzsdwssznovdruypcnjulkfuzmxnafamespckjcazxdrtdgyrqscczybnvqqcqcjitlvcnvbmasidzgwraatzzwpwmfbfjkncvkelhhzjchpdnlunmppnlgjznkewwuysgefonexpmmsbaopmdgzqmkqzxuvtqvnxbslqzkglzamzpdnsjolvybwxxttqognrbaiakqllszkhfzconnmoqklpeefsnsmouwqhodsgcfohesyshmgxwtoayuvnojdjftqtwkbapriujimqwspslgvlcsaqbdbgwtbseettwdnfnbyjvpdjxyuzqxstatbzpctthoofremgfkrbcvkzvgbofthgojhdnaywpnbitoraaibednezwfpdawlohssvtqtkfvsyljzlucqxswyqdntdmfrtzlqsekejhzksklfepxchvczysvdgcxbbiswmeaylzifktmoikssfxtgpojxqiysrsqfwqdjqnqcgdqrnlluieazvmwnuufnnxvloyvgmliuqandlyavfauaosnlnvacsvpiumoiawcqxswkqwgxyazntnaikameybnuqbcqaggxachrynqxqqmlfotpqhvokiiammqmvxjvbsoaifzyxnjcberrnmixxsyjhovengbpyqrixqgwdrygxrxkfhicainhwilkqmbpeszdigznzxtzqsjwatycbmjawwmninepfduplucltxmkpvg",
 "rgtuseurageltkcapwpbqromqawixezqkvlfbhwcocpjmrmbpbegvsuluqtuuvkesvjtdhvtjmexfqbvufdpaxcwnwqjtbplyzedicwsodpwtqrpyuearhwgfnpaqelofrsotqiktxipqzeqvlqmuoubbjbrpmixfclbstnosvdkujcpwsdqhxrkiueziowoqjpiecwxxbjtnmkjgncpmvauqgtausokbfugjtfiuqbjclvlazamucimicnewdoxjlfuemdadgkhufsuevjaxrnivcorhfrqqwnujquoyevslqprlyskrhunljgsoxleuyyfqutozqhmgyetyyepfaesjlkzivdevdllygazxjndjrxhrdyyddqnqdoayshwxshxzjywumbffamxdnxjqoyirmirernekxdlicjfqkkvnxuqmszcixmzkwsqoiwyfalpeuuugfrteomqinuqnirxelpstosaodqszkogrfbxtnpdbltqtmpyyeqtujuiokcowswqyxntndxqqsgkhvihbaawjugagloddktdjizynyoesuozryityjrifximkyrokktvusuiqiojfckyatryekijksvusokcyeavwufpctajxkixdbxjmitwcqqxfbbfhbadvfuaaujxfrwkvuuhepdifvfkyhsfiuleafgaapahjwtesplweqfmnmymtqreleinkopmfpvomqueghdmxkynwxzqnswaxgnjwdxbuusgkmnqwqdvadiwahoqakqzqgkmlhqfdimnwzgsplorownpgehioxhhfrvqalwdtksslykajataxgpdmyldxukdnftprrumbmemlrowrhwoqntclghlcrorzhgsbaecplpccdyvnxmdmfhaoplqizkhiqbjtimitdkxiksxjecwmkwabhslievqvwcqeqaztkydwrbgxdcjpalshgepkzhhvlxcbxdwjccgtdoqiscyspqzvuqivzptlpvooynyapgvswoaosaghrffnxnjyeeltzaizniccozwknwyhzgpqlwfkjqipuujvwtxlbznryjdohbvghmyuiggtyqjtmuqinntqmihntkddnalwnmsxsatqqeldacnnpjfermrnyuqnwbjjpdjhdeavknykpoxhxclqqedqavdwzoiorrwwxyrhlsrdgqkduvtmzzczufvtvfioygkvedervvudneghbctcbxdxezrzgbpfhzanffeccbgqfmzjqtlrsppxqiywjobspefujlxnmddurddiyobqfspvcoulcvdrzkmkwlyiqdchghrgytzdnobqcvdeqjystmepxcaniewqmoxkjwpymqorluxedvywhcoghotpusfgiestckrpaigocfufbubiyrrffmwaeeimidfnnzcphkflpbqsvtdwludsgaungfzoihbxifoprwcjzsdxngtacwtjypweuxvegybogsfxqhipbompufpxckicaghufczmaccgwigmrqcteqkbwbaamicoqlivnjjoomwkucznvdgztqarsargkwuaheyvohletjqpopdjslkoelfynzeavaaceazuimydypvmgyxblhppuunkttkqtmvanuuvjvahmvvuvsvhzkywhmgchqvdcqdpmzmxwneikzfgtantnlpwzvahnvkplpfaotxngexrfczzdmuszlobiokvkwkxlrxblvotzomeqlftxzlzkbcsqmnciazvrzyeupyvdkbtwhpvgcwteylwkbyubxruwszshxpmjrhfawdibzbfypdksbhtaapzsorbnjpzcxecvjmwjqdjhgvzjcukfjjzacbpnsoppvtleijpynyfvuefyyrdjadjegbsypjomfbrnkilzhsvbwczwtdfvirbosvmjfcymdrzqzkpgemjaojyjofeywimqdackdawitxysjqzncipttncjtjhrtvkwwojbqhjjfkboaccenrxihcsanbtgxdcttnujvfscrwqtyuynmxwvbqxorquowzhpmdzjlrlcncyoywbmvzhxpenhvivthfivkhfxbqaquyetwifthns",
@@ -142,37 +145,18 @@ void read_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 {
     while (1) {
         // BYTE data[100] = {0};
-        std::string data = "";
-        int len = writeQueue->read_shm(data);
-#if 1
+        // std::string data = "";
+        char data[MAX_FILE_BUFF_SIZE + 1] = {0};
+        int len = writeQueue->read(data, MAX_FILE_BUFF_SIZE);
         if (len > 0) {
-            // std::cout << "len = " << len << ", data = " << data << std::endl;
+            // cout << read_i << "[" << len << "] = " << data << endl;
             read_i++;
+        } else {
+            cout << "ERROR, len = " << len << endl;
         }
         if (read_i >= SING_TEST_NUM * SING_CYCLE_NUM) {
             break;
         }
-#else
-    if (len > 0) {
-        int i = atoi((const char *) data);
-        if (i != read_i && i != -1) {
-            printf("------------Read sequence error,i = %d,read = %s ------------\n", read_i, data);
-            writeQueue->print_head();
-            exit(-1);
-        }
-        if (i == -1) {
-            break;
-        }
-        read_i++;
-    }
-    else {
-        if (len != (int) eQueueErrorCode::QUEUE_NO_MESSAGE) {
-            printf("Read failed ret = %d\n", len);
-            writeQueue->print_head();
-            exit(-1);
-        }
-    }
-#endif
     }
     printf("Read %s ,thread %d ,read count %d\n", mes, threadId, read_i);
 
@@ -181,33 +165,19 @@ void read_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 void write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 {
     for (int syw_idx = 0; syw_idx < SING_CYCLE_NUM; ++syw_idx) {
-        ifstream in_file("/home/songyuwen/code/box/baidu/fcr-model/shmqueue/file/part-00049");
-        std::string data = "";
+        ifstream in_file(filename);
+        std::string data = test_str_lst[write_i & 99];
         while (getline(in_file, data)) {
-#if 0            
-            if (write_i >= SING_TEST_NUM) {
-                break;
-            }
-#endif            
-#if 0
-            const std::string& data = test_str_lst[write_i & 99];
-#endif
-            while (0 != writeQueue->write_shm((char *) data.c_str(), data.length())) {
+            data = test_str_lst[write_i & 99];
+            while (0 != writeQueue->write((char *) data.c_str(), data.length())) {
                 continue;
             }
-#if 0        
-            int iRet = writeQueue->write_shm((char *) data.c_str(), data.length());
-            if (iRet == 0) {
-                write_i++;
-                // std::cout << "len = " << data.length() << ", data = " << data << std::endl;
-            } else if (iRet != (int) eQueueErrorCode::QUEUE_NO_SPACE) {
-                printf("Write failed data = %d,ret = %d\n", write_i, iRet);
-                writeQueue->print_head();
-                exit(-1);
+            // cout << write_i << "[" << data.length() << "] = " << data << endl;
+            ++write_i;
+            if (write_i >= SING_TEST_NUM * SING_CYCLE_NUM) {
+                break;
             }
-#endif        
         }
-
     }
     //over
     while (0 != writeQueue->get_data_size()) {
@@ -221,16 +191,12 @@ void mul_read_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 {
     int i = 0;
     while (1) {
-        std::string data = "";
-        int len = writeQueue->read_shm(data);
+        // std::string data = "";
+        char data[MAX_FILE_BUFF_SIZE + 1] = {0};
+        int len = writeQueue->read(data, MAX_FILE_BUFF_SIZE);
         if (len > 0) {
             i++;
             read_count++;
-#if 0        
-            if (read_count % 100000 == 0) {
-                std::cout << "read count = " << read_count << std::endl;
-            }
-#endif            
         }
         else {
             if (done_flag) {
@@ -254,38 +220,15 @@ void mul_write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 {
     int i = 0;
     for (int syw_idx = 0; syw_idx < MULTI_CYCLE_NUM; ++syw_idx) {
-        ifstream in_file("/home/songyuwen/code/box/baidu/fcr-model/shmqueue/file/part-00049");
+        ifstream in_file(filename);
         std::string data = "";
         while (getline(in_file, data)) {
-#if 0        
-            if (i >= THREAD_SEND_NUM) {
-                break;
-            }
-#endif        
             // const string &data = to_string(i);
-            while (0 != writeQueue->write_shm((char *) data.c_str(), data.length())) {
+            while (0 != writeQueue->write((char *) data.c_str(), data.length())) {
                 continue;
             }
             write_count++;
             i++;
-#if 0        
-            const std::string& data = test_str_lst[write_count & 99];
-            int iRet = writeQueue->write_shm((char *) data.c_str(), data.length());
-            if (iRet == 0) {
-                i++;
-                write_count++;
-                if (write_count >= THREAD_SEND_NUM * THREAD_NUM) {
-                    done_flag.store(true);
-                }
-            }
-            else {
-                if (iRet != (int) eQueueErrorCode::QUEUE_NO_SPACE) {
-                    printf("Write failed data = %d,ret = %d\n", write_i, iRet);
-                    writeQueue->print_head();
-                    exit(-1);
-                }
-            }
-#endif        
         }
     }
     while (0 != writeQueue->get_data_size()) {
@@ -297,15 +240,30 @@ void mul_write_func(CMessageQueue *writeQueue, int threadId, const char *mes)
 
 void SingleRWTest(int type)
 {
-    CMessageQueue *messQueue = CMessageQueue::create_instance(SHAR_KEY_2, SHM_SIZE, eQueueModel::ONE_READ_ONE_WRITE);
+    CMessageQueue *messQueue = NULL;
     long begin = getCurrentTime();
     if (2 == type) {
+        messQueue = CMessageQueue::create_instance(SHAR_KEY_2, 0, eQueueModel::ONE_READ_ONE_WRITE);
+        if (NULL == messQueue) {
+            cout << "READ create shm failed!" << endl;
+            return;
+        }
         thread read_thread(read_func, messQueue, 1, "SingleRWTest");
         read_thread.join();
     } else if (3 == type) {
+        messQueue = CMessageQueue::create_instance(SHAR_KEY_2, SHM_SIZE, eQueueModel::ONE_READ_ONE_WRITE);
+        if (NULL == messQueue) {
+            cout << "WRITE create shm failed!" << endl;
+            return;
+        }
         thread write_thread(write_func, messQueue, 1, "SingleRWTest");
         write_thread.join();
     } else {
+        messQueue = CMessageQueue::create_instance(SHAR_KEY_2, SHM_SIZE, eQueueModel::ONE_READ_ONE_WRITE);
+        if (NULL == messQueue) {
+            cout << "REA & WRITE create shm failed!" << endl;
+            return;
+        }
         thread read_thread(read_func, messQueue, 1, "SingleRWTest");
         thread write_thread(write_func, messQueue, 1, "SingleRWTest");
         write_thread.join();

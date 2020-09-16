@@ -1,0 +1,4 @@
+#!/bin/sh
+ipcs -m
+ipcs -m | grep "songyuwen" | grep "^0x" | awk '{print $2}' | xargs ipcrm -m
+ipcs -m
